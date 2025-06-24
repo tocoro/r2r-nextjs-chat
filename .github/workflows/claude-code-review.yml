@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 1
 
       - name: Auto review PR
-        uses: tocoro/claude-code-action@beta  # Fork with OAuth support
+        uses: tocoro/claude-code-action@main  # Fork with OAuth support
         with:
           # Option 1: Use Anthropic API key (commented out for OAuth)
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
