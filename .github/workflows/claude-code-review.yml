@@ -1,0 +1,40 @@
+name: Auto review PRs
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  auto-review:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Auto review PR
+        uses: tocoro/claude-code-action@beta  # Fork with OAuth support
+        with:
+          # Option 1: Use Anthropic API key (commented out for OAuth)
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          # Option 2: Use OAuth for Claude Max subscribers (ACTIVE)
+          use_oauth: "true"
+          claude_access_token: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
+          claude_refresh_token: ${{ secrets.CLAUDE_REFRESH_TOKEN }}
+          claude_expires_at: ${{ secrets.CLAUDE_EXPIRES_AT }}
+          
+          direct_prompt: |
+            Please review this PR. Look at the changes and provide thoughtful feedback on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Suggestions for improvements
+            - Overall architecture and design decisions
+
+            Be constructive and specific in your feedback. Give inline comments where applicable.
+          allowed_tools: "mcp__github_file_ops__add_pull_request_review_comment"
