@@ -51,9 +51,6 @@ export default function Chat() {
     body: {
       searchMode
     },
-    experimental_onToolCall: ({ toolCall }) => {
-      console.log('Tool call received:', toolCall);
-    },
     onResponse: async (response) => {
       console.log('Response received:', response);
       console.log('Response headers:', response.headers);
@@ -125,11 +122,10 @@ export default function Chat() {
     }
   });
   
-  const { messages, input, handleInputChange, handleSubmit, isLoading, data, experimental_data } = chatHelpers;
+  const { messages, input, handleInputChange, handleSubmit, isLoading, data } = chatHelpers;
   
   // Log all chat helpers to see what's available
   console.log('Chat helpers:', Object.keys(chatHelpers));
-  console.log('experimental_data:', experimental_data);
 
   // Extract search results from data stream
   const [messageSearchResults, setMessageSearchResults] = useState<{ [messageId: string]: any }>({});
@@ -170,7 +166,7 @@ export default function Chat() {
         // Look for searchResults in the data array
         const searchResultsData = data.find((d: any) => d?.type === 'searchResults');
         console.log('Found searchResultsData:', searchResultsData);
-        if (searchResultsData && messages.length > 0) {
+        if (searchResultsData && typeof searchResultsData === 'object' && 'data' in searchResultsData && messages.length > 0) {
           // Associate search results with the latest assistant message
           const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
           console.log('Last assistant message:', lastAssistantMessage);

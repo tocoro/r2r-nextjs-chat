@@ -43,7 +43,7 @@ export default function MessageWithCitations({ content, citations = [], searchRe
     console.log('MessageWithCitations - content:', content);
     console.log('MessageWithCitations - searchResults:', searchResults);
     // Split content into parts and identify both citation markers and search result IDs
-    const parts: (string | JSX.Element)[] = [];
+    const parts: (string | React.ReactElement)[] = [];
     let lastIndex = 0;
     
     // Regular expressions to match different types of markers
