@@ -111,7 +111,7 @@ export async function POST(req: Request) {
               }
               
               // Send completion event
-              controller.enqueue(encoder.encode('e:{"finishReason":"stop"}\n'));
+              controller.enqueue(encoder.encode('3:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'));
               
               // Send final data event
               controller.enqueue(encoder.encode('d:{}\n'));
@@ -119,7 +119,7 @@ export async function POST(req: Request) {
             } catch (error) {
               console.error('Agent streaming error:', error);
               // Send error event
-              controller.enqueue(encoder.encode('e:{"finishReason":"error"}\n'));
+              controller.enqueue(encoder.encode('3:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0}}\n'));
             } finally {
               controller.close();
             }
@@ -213,7 +213,7 @@ export async function POST(req: Request) {
               }
               
               // Send completion event
-              controller.enqueue(encoder.encode('e:{"finishReason":"stop"}\n'));
+              controller.enqueue(encoder.encode('3:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'));
               
               // Send final data event
               controller.enqueue(encoder.encode('d:{}\n'));
@@ -221,7 +221,7 @@ export async function POST(req: Request) {
             } catch (error) {
               console.error('Streaming error:', error);
               // Send error event
-              controller.enqueue(encoder.encode('e:{"finishReason":"error"}\n'));
+              controller.enqueue(encoder.encode('3:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0}}\n'));
             } finally {
               controller.close();
             }

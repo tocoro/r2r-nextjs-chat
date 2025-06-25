@@ -40,8 +40,16 @@ export default function MessageWithCitations({ content, citations = [], searchRe
 
   // Parse content and replace both citation markers and search result IDs with clickable elements
   const parsedContent = useMemo(() => {
-    console.log('MessageWithCitations - content:', content);
-    console.log('MessageWithCitations - searchResults:', searchResults);
+    // Only log if there are issues
+    if (!content) {
+      console.log('MessageWithCitations - content is empty');
+    }
+    
+    // Handle undefined or null content
+    if (!content) {
+      return [''];
+    }
+    
     // Split content into parts and identify both citation markers and search result IDs
     const parts: (string | React.ReactElement)[] = [];
     let lastIndex = 0;

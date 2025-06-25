@@ -63,21 +63,26 @@ export default function ChatClientPage() {
       });
     },
     onError: (error) => {
+      console.error('Chat error:', error);
       // Track error
       trackEvent('chat_error', {
         error: error.message
       });
     },
-    onFinish: (message) => {
+    onFinish: (message, options) => {
       // Track message received
+      const content = message.content || (message.parts ? message.parts.map((part: any) => part.text).join('') : '');
       trackEvent('message_received', {
-        responseLength: message.content.length,
+        responseLength: content.length,
         searchMode
       });
     }
   });
 
-  console.log('Chat helpers:', Object.keys({ messages, input, handleInputChange, handleSubmit: originalHandleSubmit, isLoading, data: streamData }));
+  // Debug only when there are issues
+  if (messages.length > 0 && !messages.some(m => m.content || (m.parts && m.parts.length > 0))) {
+    console.log('DEBUG: Messages without content detected:', messages);
+  }
 
   // Process streaming search results from tool calls
   useEffect(() => {
@@ -85,6 +90,24 @@ export default function ChatClientPage() {
       try {
         const dataArray = streamData as any[];
         dataArray.forEach((data) => {
+          // Handle search results from metadata events
+          if (data && data.type === 'searchResults' && data.data) {
+            const searchData = data.data;
+            const results = Object.values(searchData).map((result: any) => ({
+              chunk_id: result.id,
+              document_id: result.documentId,
+              text: result.text,
+              score: result.score,
+              metadata: result.metadata
+            }));
+            
+            if (results.length > 0) {
+              console.log('Search results found:', results.length, 'items');
+              setSearchResults(results);
+            }
+          }
+          
+          // Handle legacy format for tool calls
           if (data && data.tool_name === 'search' && data.args && data.args.results) {
             const results = data.args.results;
             if (Array.isArray(results) && results.length > 0) {
@@ -130,9 +153,31 @@ export default function ChatClientPage() {
           )}
 
           {/* Messages */}
-          {messages.map((message) => (
-            <MessageWithCitations key={message.id} message={message} />
-          ))}
+          {messages.map((message, index) => {
+            // Extract content from message object
+            const messageContent = message.content || (message.parts ? message.parts.map((part: any) => part.text).join('') : '');
+            return (
+              <div key={message.id} className={`mb-4 ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
+                <div className={`inline-block p-3 rounded-lg max-w-3xl ${
+                  message.role === 'user' 
+                    ? 'bg-blue-600 text-white ml-auto' 
+                    : 'bg-gray-100 text-gray-900'
+                }`}>
+                  {message.role === 'assistant' ? (
+                    <MessageWithCitations 
+                      content={messageContent}
+                      searchResults={searchResults.reduce((acc: any, result: any) => {
+                        acc[result.chunk_id?.substring(0, 7) || result.id?.substring(0, 7)] = result;
+                        return acc;
+                      }, {})}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{messageContent}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
 
           {isLoading && (
             <div className="flex items-center space-x-2 text-gray-500">
