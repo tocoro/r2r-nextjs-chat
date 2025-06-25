@@ -4,12 +4,15 @@ A RAG (Retrieval-Augmented Generation) chat application built with Next.js, R2R,
 
 ## Features
 
+- 🔒 Authentication required (NextAuth.js)
 - 📄 Document upload (PDF, TXT, MD, DOCX)
 - 🎯 Drag-and-drop file upload
 - 💬 Real-time streaming chat
 - 🔍 RAG-powered responses using R2R
+- 🤖 Switch between RAG and Agent modes
 - 🎨 Responsive UI with Tailwind CSS
 - ⚡ Built with Next.js 15 App Router
+- 📊 PostHog analytics integration
 
 ## Prerequisites
 
@@ -50,9 +53,21 @@ cp .env.example .env.local
 Update the values in `.env.local`:
 
 ```env
+# R2R Configuration
 R2R_BASE_URL=http://localhost:7272  # Your R2R server URL
 R2R_API_KEY=your_r2r_api_key_here   # Optional: R2R API key if authentication is enabled
+
+# OpenAI Configuration
 OPENAI_API_KEY=your_openai_api_key_here  # Your OpenAI API key
+
+# NextAuth Configuration (Required)
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_secret_here  # Generate with: openssl rand -base64 32
+
+# PostHog Analytics (Optional)
+# NEXT_PUBLIC_POSTHOG_API_KEY=your_posthog_api_key
+# NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+# NEXT_PUBLIC_DISABLE_TELEMETRY=true
 ```
 
 ### 4. Run the development server
@@ -65,9 +80,12 @@ Open [http://localhost:3000](http://localhost:3000) to see the application.
 
 ## Usage
 
-1. **Upload Documents**: Click the upload area or drag and drop files (PDF, TXT, MD, DOCX)
-2. **Start Chatting**: Type your questions in the chat input
-3. **Get RAG Responses**: The app searches your documents and generates contextual responses
+1. **Login**: Access the application requires authentication. Use any username/password for demo purposes
+2. **Upload Documents**: Click the upload area or drag and drop files (PDF, TXT, MD, DOCX)
+3. **Choose Mode**: Select between RAG (traditional search) or Agent mode
+4. **Start Chatting**: Type your questions in the chat input
+5. **Get RAG Responses**: The app searches your documents and generates contextual responses
+6. **Logout**: Click the logout button in the header when done
 
 ## Architecture
 
@@ -107,13 +125,22 @@ Open [http://localhost:3000](http://localhost:3000) to see the application.
 r2r-nextjs-chat/
 ├── app/
 │   ├── api/
-│   │   ├── chat/route.ts       # Chat API endpoint
-│   │   └── upload/route.ts     # Upload API endpoint
+│   │   ├── auth/[...nextauth]/route.ts  # NextAuth API routes
+│   │   ├── chat/route.ts                # Chat API endpoint
+│   │   └── upload/route.ts              # Upload API endpoint
+│   ├── login/
+│   │   └── page.tsx            # Login page
 │   ├── globals.css
 │   ├── layout.tsx
-│   └── page.tsx                # Main chat UI
+│   ├── page.tsx                # Main chat UI
+│   ├── posthog-provider.tsx   # PostHog analytics provider
+│   └── session-provider.tsx    # NextAuth session provider
+├── components/                 # UI components
 ├── lib/
-│   └── r2r-client.ts          # R2R client configuration
+│   ├── r2r-client.ts          # R2R client configuration
+│   └── posthog-client.ts      # PostHog configuration
+├── auth.ts                     # NextAuth configuration
+├── middleware.ts               # Authentication middleware
 ├── .env.example
 ├── package.json
 └── README.md
@@ -124,6 +151,17 @@ r2r-nextjs-chat/
 - **Custom Prompts**: Modify the system prompt in `/api/chat/route.ts`
 - **File Types**: Add new MIME types in `/api/upload/route.ts`
 - **UI Components**: Extend the chat interface in `/app/page.tsx`
+
+### Authentication Customization
+
+The application uses NextAuth.js for authentication. Currently configured for demo purposes with a credentials provider that accepts any username/password.
+
+To implement proper authentication:
+
+1. **Database Authentication**: Replace the demo authorize function in `auth.ts` with database user validation
+2. **OAuth Providers**: Add providers like Google, GitHub, etc. in `auth.ts`
+3. **Custom Login Page**: Modify `/app/login/page.tsx` for your branding
+4. **Session Management**: Configure session strategy and expiry in `auth.ts`
 
 ## Deploy on Vercel
 

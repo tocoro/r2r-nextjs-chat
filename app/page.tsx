@@ -2,10 +2,11 @@
 
 import { useChat } from 'ai/react';
 import { useState, useRef, DragEvent, useEffect } from 'react';
-import { Upload, Send, FileText, X, Loader2, Bot, Search } from 'lucide-react';
+import { Upload, Send, FileText, X, Loader2, Bot, Search, LogOut } from 'lucide-react';
 import { analytics, useAnalytics } from '@/lib/posthog-client';
 import MessageWithCitations from '@/components/MessageWithCitations';
 import SearchResultsAccordion from '@/components/SearchResultsAccordion';
+import { signOut, useSession } from 'next-auth/react';
 
 interface Citation {
   id: string;
@@ -35,6 +36,7 @@ export default function Chat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { trackEvent } = useAnalytics();
+  const { data: session } = useSession();
 
   // Track search mode changes
   useEffect(() => {
@@ -288,31 +290,47 @@ export default function Chat() {
             <p className="text-sm text-gray-600">Chat with your documents using RAG or Agent</p>
           </div>
           
-          {/* Search Mode Toggle */}
-          <div className="flex items-center space-x-4">
-            <span className="text-sm font-medium text-gray-700">Search Mode:</span>
-            <div className="flex bg-gray-100 rounded-lg p-1">
+          <div className="flex items-center space-x-6">
+            {/* Search Mode Toggle */}
+            <div className="flex items-center space-x-4">
+              <span className="text-sm font-medium text-gray-700">Search Mode:</span>
+              <div className="flex bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setSearchMode('rag')}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    searchMode === 'rag'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  <Search className="h-4 w-4" />
+                  <span>RAG</span>
+                </button>
+                <button
+                  onClick={() => setSearchMode('agent')}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    searchMode === 'agent'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  <Bot className="h-4 w-4" />
+                  <span>Agent</span>
+                </button>
+              </div>
+            </div>
+            
+            {/* User Info and Logout */}
+            <div className="flex items-center space-x-4 border-l pl-6">
+              <span className="text-sm text-gray-700">
+                {session?.user?.name || 'ユーザー'}
+              </span>
               <button
-                onClick={() => setSearchMode('rag')}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  searchMode === 'rag'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
               >
-                <Search className="h-4 w-4" />
-                <span>RAG</span>
-              </button>
-              <button
-                onClick={() => setSearchMode('agent')}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  searchMode === 'agent'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                <Bot className="h-4 w-4" />
-                <span>Agent</span>
+                <LogOut className="h-4 w-4" />
+                <span>ログアウト</span>
               </button>
             </div>
           </div>
