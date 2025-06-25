@@ -3,6 +3,13 @@ import Credentials from "next-auth/providers/credentials"
 import type { NextAuthConfig } from "next-auth"
 
 export const authConfig: NextAuthConfig = {
+  trustHost: true,
+  secret: process.env.AUTH_SECRET || "vtMvmSbVHhJI9Tgz9Y/0YzRD9itTi3nHEHCu+EA0VRU=",
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  debug: process.env.NODE_ENV === 'development',
   providers: [
     Credentials({
       name: "credentials",
@@ -11,36 +18,59 @@ export const authConfig: NextAuthConfig = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        // For demo purposes, accept any username/password combination
-        // In production, you would validate against a database
+        console.log("Authorize called with credentials:", credentials)
+        
         if (credentials?.username && credentials?.password) {
-          return {
-            id: "1",
-            name: credentials.username,
-            email: `${credentials.username}@example.com`
+          try {
+            // Dynamic import to avoid loading in Edge runtime
+            const { getUserByUsername, updateLastLogin } = await import("@/lib/db")
+            
+            // Get user from our user store
+            const user = await getUserByUsername(credentials.username as string)
+            
+            if (user && user.is_active) {
+              // Update last login
+              await updateLastLogin(user.username)
+              
+              const authUser = {
+                id: user.id,
+                name: user.username,
+                email: user.email,
+                role: user.role
+              }
+              console.log("Returning user:", authUser)
+              return authUser
+            }
+          } catch (error) {
+            console.error("Error in authorize:", error)
           }
         }
+        console.log("Invalid credentials or user not found")
         return null
       }
     })
   ],
   pages: {
-    signIn: "/login",
-    signOut: "/login",
-    error: "/login"
+    signIn: "/login"
   },
   callbacks: {
-    authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user
-      const isOnLogin = nextUrl.pathname.startsWith("/login")
-      
-      if (isOnLogin) {
-        if (isLoggedIn) return Response.redirect(new URL("/", nextUrl))
-        return true
+    async jwt({ token, user }: { token: any; user: any }) {
+      if (user) {
+        token.id = user.id
+        token.name = user.name
+        token.email = user.email
+        token.role = user.role
       }
-      
-      if (isLoggedIn) return true
-      return false // Redirect unauthenticated users to login page
+      return token
+    },
+    async session({ session, token }: { session: any; token: any }) {
+      if (token) {
+        session.user.id = token.id
+        session.user.name = token.name
+        session.user.email = token.email
+        session.user.role = token.role
+      }
+      return session
     }
   }
 }

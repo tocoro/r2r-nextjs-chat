@@ -5,6 +5,7 @@ export default auth((req) => {
   const isLoggedIn = !!req.auth
   const isLoginPage = req.nextUrl.pathname.startsWith("/login")
   const isApiAuth = req.nextUrl.pathname.startsWith("/api/auth")
+  const isAdminPage = req.nextUrl.pathname.startsWith("/admin")
   
   // Allow access to login page and auth API routes
   if (isLoginPage || isApiAuth) {
@@ -17,9 +18,18 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl)
   }
   
+  // Check admin access
+  if (isAdminPage) {
+    const userRole = req.auth?.user?.role
+    if (userRole !== "admin") {
+      const homeUrl = new URL("/", req.url)
+      return NextResponse.redirect(homeUrl)
+    }
+  }
+  
   return NextResponse.next()
 })
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"]
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|public).*)"]
 }

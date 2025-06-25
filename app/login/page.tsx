@@ -1,42 +1,29 @@
-"use client"
+import { signIn } from "@/auth"
+import { AuthError } from "next-auth"
+import { redirect } from "next/navigation"
 
-import { signIn } from "next-auth/react"
-import { useState } from "react"
-import { useSearchParams } from "next/navigation"
+async function authenticate(formData: FormData) {
+  "use server"
+  
+  try {
+    await signIn("credentials", {
+      ...Object.fromEntries(formData),
+      redirectTo: "/"
+    })
+  } catch (error) {
+    if (error instanceof AuthError) {
+      switch (error.type) {
+        case "CredentialsSignin":
+          return "Invalid credentials."
+        default:
+          return "Something went wrong."
+      }
+    }
+    throw error
+  }
+}
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
-  const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get("callbackUrl") || "/"
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
-    setLoading(true)
-
-    try {
-      const result = await signIn("credentials", {
-        username,
-        password,
-        redirect: false,
-        callbackUrl
-      })
-
-      if (result?.error) {
-        setError("ログインに失敗しました。ユーザー名とパスワードを確認してください。")
-      } else if (result?.ok) {
-        window.location.href = callbackUrl
-      }
-    } catch (error) {
-      setError("エラーが発生しました。もう一度お試しください。")
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -48,12 +35,8 @@ export default function LoginPage() {
             ユーザー名とパスワードを入力してください
           </p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="text-sm text-red-800">{error}</div>
-            </div>
-          )}
+        
+        <form action={authenticate} className="mt-8 space-y-6">
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="username" className="sr-only">
@@ -66,9 +49,6 @@ export default function LoginPage() {
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="ユーザー名"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={loading}
               />
             </div>
             <div>
@@ -82,9 +62,6 @@ export default function LoginPage() {
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="パスワード"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
               />
             </div>
           </div>
@@ -92,12 +69,12 @@ export default function LoginPage() {
           <div>
             <button
               type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
-              {loading ? "ログイン中..." : "ログイン"}
+              ログイン
             </button>
           </div>
+          
           <div className="text-sm text-center text-gray-600">
             デモ用: 任意のユーザー名とパスワードでログインできます
           </div>
