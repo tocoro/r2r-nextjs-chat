@@ -33,7 +33,7 @@ jobs:
 
             - name: Run Claude Code
               id: claude
-              uses: tocoro/claude-code-action@beta
+              uses: tocoro/claude-code-action@main
               with:
                   use_oauth: 'true'
                   claude_access_token: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
