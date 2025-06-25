@@ -1,7 +1,8 @@
 import { auth } from "@/auth"
 import { getAllUsers, createUser, updateUser, deleteUser, logAction } from "@/lib/db"
 import { redirect } from "next/navigation"
-import { Users, UserPlus, Edit, Trash2, Shield, User as UserIcon } from "lucide-react"
+import Link from "next/link"
+import { Users, UserPlus, Edit, Trash2, Shield, User as UserIcon, FileText, ArrowLeft } from "lucide-react"
 
 async function createUserAction(formData: FormData) {
   "use server"
@@ -84,19 +85,43 @@ export default async function AdminPage() {
   const users = await getAllUsers()
   
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="flex items-center justify-between mb-6">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between py-4">
+            <div className="flex items-center space-x-4">
+              <Link
+                href="/"
+                className="flex items-center text-gray-600 hover:text-gray-900"
+              >
+                <ArrowLeft className="h-5 w-5 mr-2" />
+                チャットに戻る
+              </Link>
               <div className="flex items-center space-x-3">
                 <Shield className="h-8 w-8 text-indigo-600" />
                 <h1 className="text-2xl font-bold text-gray-900">ユーザー管理</h1>
               </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Link
+                href="/admin/documents"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                ドキュメント管理
+              </Link>
               <div className="text-sm text-gray-500">
                 管理者: {session.user.name}
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Content */}
+      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <div className="bg-white shadow rounded-lg p-6">
             
             {/* Create User Form */}
             <div className="mb-8 p-4 bg-gray-50 rounded-lg">
@@ -257,7 +282,6 @@ export default async function AdminPage() {
                 </table>
               </div>
             </div>
-          </div>
         </div>
       </div>
     </div>
