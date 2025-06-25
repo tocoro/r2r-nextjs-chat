@@ -1,21 +1,194 @@
 'use client';
 
 import { useChat } from 'ai/react';
-import { useState, useRef, DragEvent } from 'react';
+import { useState, useRef, DragEvent, useEffect } from 'react';
 import { Upload, Send, FileText, X, Loader2, Bot, Search } from 'lucide-react';
+import { analytics, useAnalytics } from '@/lib/posthog-client';
+import MessageWithCitations from '@/components/MessageWithCitations';
+import SearchResultsAccordion from '@/components/SearchResultsAccordion';
+
+interface Citation {
+  id: string;
+  document_id: string;
+  chunk_id?: string;
+  text: string;
+  score: number;
+  metadata?: any;
+}
+
+interface SearchResult {
+  id: string;
+  documentId: string;
+  ownerId: string;
+  collectionIds: string[];
+  score: number;
+  text: string;
+  metadata?: any;
+}
 
 export default function Chat() {
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [searchMode, setSearchMode] = useState<'rag' | 'agent'>('rag');
+  const [previousSearchMode, setPreviousSearchMode] = useState<'rag' | 'agent'>('rag');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  const { trackEvent } = useAnalytics();
+
+  // Track search mode changes
+  useEffect(() => {
+    if (previousSearchMode !== searchMode) {
+      analytics.searchModeChanged({
+        fromMode: previousSearchMode,
+        toMode: searchMode
+      });
+      setPreviousSearchMode(searchMode);
+    }
+  }, [searchMode, previousSearchMode]);
+  
+  const chatHelpers = useChat({
     body: {
       searchMode
+    },
+    experimental_onToolCall: ({ toolCall }) => {
+      console.log('Tool call received:', toolCall);
+    },
+    onResponse: async (response) => {
+      console.log('Response received:', response);
+      console.log('Response headers:', response.headers);
+      
+      // Parse the stream manually to extract search results
+      try {
+        const clonedResponse = response.clone();
+        const reader = clonedResponse.body?.getReader();
+        if (reader) {
+          const decoder = new TextDecoder();
+          let buffer = '';
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            
+            for (const line of lines) {
+              if (line.trim()) {
+                console.log('Processing line:', line);
+                
+                // Check if this is a data message (type 8)
+                if (line.startsWith('8:')) {
+                  try {
+                    const dataContent = line.substring(2);
+                    const parsed = JSON.parse(dataContent);
+                    console.log('Parsed data message:', parsed);
+                    
+                    // Look for search results
+                    if (Array.isArray(parsed)) {
+                      const searchResultsItem = parsed.find((item: any) => item.type === 'searchResults');
+                      if (searchResultsItem && searchResultsItem.data) {
+                        console.log('Found search results:', searchResultsItem.data);
+                        setPendingSearchResults(searchResultsItem.data);
+                      }
+                    }
+                  } catch (e) {
+                    console.error('Error parsing data message:', e);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error reading response:', e);
+      }
+    },
+    onFinish: (message, { usage, finishReason }) => {
+      console.log('Message finished:', message, 'finishReason:', finishReason);
+      // Track successful chat message
+      analytics.chatMessage({
+        searchMode,
+        messageLength: input.length,
+        hasContext: uploadedFiles.length > 0
+      });
+    },
+    onError: (error) => {
+      console.error('Chat error:', error);
+      // Track chat errors
+      trackEvent('chat_error', {
+        error_message: error.message,
+        search_mode: searchMode,
+        message_length: input.length
+      });
     }
   });
+  
+  const { messages, input, handleInputChange, handleSubmit, isLoading, data, experimental_data } = chatHelpers;
+  
+  // Log all chat helpers to see what's available
+  console.log('Chat helpers:', Object.keys(chatHelpers));
+  console.log('experimental_data:', experimental_data);
+
+  // Extract search results from data stream
+  const [messageSearchResults, setMessageSearchResults] = useState<{ [messageId: string]: any }>({});
+  const [pendingSearchResults, setPendingSearchResults] = useState<any>(null);
+  
+  // Debug log to see current state
+  useEffect(() => {
+    console.log('Current messageSearchResults state:', messageSearchResults);
+  }, [messageSearchResults]);
+  
+  // When we have pending search results and a new assistant message appears, associate them
+  useEffect(() => {
+    if (pendingSearchResults && messages.length > 0) {
+      const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+      if (lastAssistantMessage && !messageSearchResults[lastAssistantMessage.id]) {
+        console.log('Associating pending search results with message:', lastAssistantMessage.id);
+        setMessageSearchResults(prev => ({
+          ...prev,
+          [lastAssistantMessage.id]: pendingSearchResults
+        }));
+        setPendingSearchResults(null); // Clear pending results
+      }
+    }
+  }, [messages, pendingSearchResults, messageSearchResults]);
+
+  // Also check the data field from useChat in case it works
+  useEffect(() => {
+    console.log('useChat data:', data);
+    console.log('useChat data type:', typeof data);
+    console.log('useChat data keys:', data ? Object.keys(data) : 'no data');
+    
+    if (data) {
+      // The data from useChat might not be an array - let's check its structure
+      console.log('Data structure:', JSON.stringify(data, null, 2));
+      
+      if (Array.isArray(data)) {
+        console.log('Data is array, length:', data.length);
+        // Look for searchResults in the data array
+        const searchResultsData = data.find((d: any) => d?.type === 'searchResults');
+        console.log('Found searchResultsData:', searchResultsData);
+        if (searchResultsData && messages.length > 0) {
+          // Associate search results with the latest assistant message
+          const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+          console.log('Last assistant message:', lastAssistantMessage);
+          if (lastAssistantMessage) {
+            console.log('Setting search results for message:', lastAssistantMessage.id, searchResultsData.data);
+            setMessageSearchResults(prev => ({
+              ...prev,
+              [lastAssistantMessage.id]: searchResultsData.data
+            }));
+          }
+        }
+      } else if (typeof data === 'object') {
+        // Check if data has a different structure
+        console.log('Data is object, checking for searchResults property');
+        // Handle other possible data structures here
+      }
+    }
+  }, [data, messages]);
 
   const handleDrag = (e: DragEvent) => {
     e.preventDefault();
@@ -42,6 +215,13 @@ export default function Chat() {
     const formData = new FormData();
     formData.append('file', file);
 
+    // Track upload attempt
+    trackEvent('document_upload_started', {
+      file_name: file.name,
+      file_size: file.size,
+      file_type: file.type
+    });
+
     try {
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -52,10 +232,44 @@ export default function Chat() {
 
       if (response.ok) {
         setUploadedFiles(prev => [...prev, file.name]);
+        
+        // Track successful upload
+        analytics.documentUpload({
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          success: true
+        });
       } else {
+        // Track failed upload
+        analytics.documentUpload({
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          success: false
+        });
+        
+        trackEvent('document_upload_error', {
+          file_name: file.name,
+          error_message: data.error
+        });
+        
         alert(`Error: ${data.error}`);
       }
     } catch (error) {
+      // Track upload exception
+      analytics.documentUpload({
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        success: false
+      });
+      
+      trackEvent('document_upload_exception', {
+        file_name: file.name,
+        error_message: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
       alert('Failed to upload file');
     } finally {
       setUploading(false);
@@ -178,24 +392,48 @@ export default function Chat() {
           </div>
         )}
         
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${
-              message.role === 'user' ? 'justify-end' : 'justify-start'
-            }`}
-          >
-            <div
-              className={`max-w-[70%] rounded-lg p-4 ${
-                message.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white border text-gray-800'
-              }`}
-            >
-              <p className="whitespace-pre-wrap">{message.content}</p>
+        {messages.map((message, index) => {
+          // Get search results for this specific message
+          const searchResults = messageSearchResults[message.id] || {};
+          console.log(`Message ${message.id} searchResults:`, searchResults);
+
+          return (
+            <div key={message.id}>
+              {/* Show search results accordion for assistant messages */}
+              {message.role === 'assistant' && Object.keys(searchResults).length > 0 && (
+                <div className="flex justify-start mb-2">
+                  <div className="max-w-[70%]">
+                    <SearchResultsAccordion searchResults={searchResults} />
+                  </div>
+                </div>
+              )}
+              
+              {/* Show the message */}
+              <div
+                className={`flex ${
+                  message.role === 'user' ? 'justify-end' : 'justify-start'
+                }`}
+              >
+                <div
+                  className={`max-w-[70%] rounded-lg p-4 ${
+                    message.role === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white border text-gray-800'
+                  }`}
+                >
+                  {message.role === 'assistant' ? (
+                    <MessageWithCitations
+                      content={message.content}
+                      searchResults={searchResults}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         
         {isLoading && (
           <div className="flex justify-start">

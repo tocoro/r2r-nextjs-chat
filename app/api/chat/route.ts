@@ -32,20 +32,109 @@ export async function POST(req: Request) {
           }
         });
 
-        console.log('R2R Agent response:', agentResponse);
+        console.log('R2R Agent response:', JSON.stringify(agentResponse, null, 2));
 
-        // Return the Agent response as a stream
-        const result = streamText({
-          model: openai('gpt-4o-mini'),
-          messages: [
-            {
-              role: 'assistant',
-              content: agentResponse.results?.completion || agentResponse.results?.generatedAnswer || 'I apologize, but I couldn\'t generate a response based on your documents.'
-            }
-          ],
+        // Extract the agent's response content - check for messages array first
+        let content = '';
+        
+        if (agentResponse.results?.messages && Array.isArray(agentResponse.results.messages)) {
+          // Find the assistant message in the messages array
+          const assistantMessage = agentResponse.results.messages.find(
+            (msg: any) => msg.role === 'assistant'
+          );
+          content = assistantMessage?.content || '';
+        }
+        
+        // Fallback to other possible fields
+        if (!content) {
+          content = agentResponse.results?.completion || 
+                   agentResponse.results?.generatedAnswer || 
+                   'I apologize, but I couldn\'t generate a response based on your documents.';
+        }
+
+        console.log('Extracted agent content:', content);
+
+        // Extract search results from agent response (if available)
+        const searchResults = agentResponse.results?.searchResults?.chunkSearchResults || [];
+        
+        console.log('Extracted agent search results:', searchResults.length, 'results');
+
+        // Create mapping of short IDs to full search results
+        const idToResult: { [key: string]: any } = {};
+        searchResults.forEach((result: any) => {
+          if (result.id) {
+            // Use first 7 characters of ID as short ID
+            const shortId = result.id.substring(0, 7);
+            idToResult[shortId] = result;
+          }
         });
 
-        return result.toDataStreamResponse();
+        console.log('Final agent content:', content);
+
+        // Return Agent content as streaming response (same implementation as RAG mode)
+        const encoder = new TextEncoder();
+        
+        const stream = new ReadableStream({
+          async start(controller) {
+            try {
+              // First send search results metadata if available
+              if (Object.keys(idToResult).length > 0) {
+                const metadataEvent = `8:[{"type":"searchResults","data":${JSON.stringify(idToResult)}}]\n`;
+                console.log('Sending metadata event (Agent mode):', metadataEvent);
+                controller.enqueue(encoder.encode(metadataEvent));
+              }
+              
+              // Split content into words for natural streaming
+              const words = content.split(' ');
+              
+              // Send each word as a text delta with proper streaming delay
+              for (let i = 0; i < words.length; i++) {
+                const word = words[i];
+                const textDelta = i === 0 ? word : ' ' + word;
+                
+                // Proper escaping for AI SDK Data Stream Protocol
+                const escapedText = textDelta
+                  .replace(/\\/g, '\\\\')
+                  .replace(/"/g, '\\"')
+                  .replace(/\n/g, '\\n')
+                  .replace(/\r/g, '\\r')
+                  .replace(/\t/g, '\\t');
+                
+                // AI SDK Data Stream Protocol format: 0:"text_delta"
+                const data = `0:"${escapedText}"\n`;
+                controller.enqueue(encoder.encode(data));
+                
+                // Add delay for streaming effect (30ms per word)
+                if (i < words.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 30));
+                }
+              }
+              
+              // Send completion event
+              controller.enqueue(encoder.encode('e:{"finishReason":"stop"}\n'));
+              
+              // Send final data event
+              controller.enqueue(encoder.encode('d:{}\n'));
+              
+            } catch (error) {
+              console.error('Agent streaming error:', error);
+              // Send error event
+              controller.enqueue(encoder.encode('e:{"finishReason":"error"}\n'));
+            } finally {
+              controller.close();
+            }
+          },
+        });
+
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type',
+          },
+        });
       } catch (agentError) {
         console.error('Agent error, falling back to search + LLM:', agentError);
       }
@@ -61,20 +150,93 @@ export async function POST(req: Request) {
           }
         });
 
-        console.log('R2R RAG response:', ragResponse);
+        console.log('R2R RAG response:', JSON.stringify(ragResponse, null, 2));
 
-        // Return the RAG response as a stream
-        const result = streamText({
-          model: openai('gpt-4o-mini'),
-          messages: [
-            {
-              role: 'assistant',
-              content: ragResponse.results?.completion || ragResponse.results?.generatedAnswer || 'I apologize, but I couldn\'t generate a response based on your documents.'
-            }
-          ],
+        // Extract content and search results
+        const content = ragResponse.results?.completion || 
+                       ragResponse.results?.generatedAnswer || 
+                       'I apologize, but I couldn\'t generate a response based on your documents.';
+        
+        const searchResults = ragResponse.results?.searchResults?.chunkSearchResults || [];
+        
+        console.log('Extracted search results:', searchResults.length, 'results');
+
+        // Create mapping of short IDs to full search results
+        const idToResult: { [key: string]: any } = {};
+        searchResults.forEach((result: any) => {
+          if (result.id) {
+            // Use first 7 characters of ID as short ID
+            const shortId = result.id.substring(0, 7);
+            idToResult[shortId] = result;
+          }
         });
 
-        return result.toDataStreamResponse();
+        console.log('Final content:', content);
+
+        // Return R2R content as streaming response using AI SDK Data Stream Protocol
+        const encoder = new TextEncoder();
+        
+        const stream = new ReadableStream({
+          async start(controller) {
+            try {
+              // First send search results metadata if available
+              if (Object.keys(idToResult).length > 0) {
+                const metadataEvent = `8:[{"type":"searchResults","data":${JSON.stringify(idToResult)}}]\n`;
+                console.log('Sending metadata event (RAG mode):', metadataEvent);
+                controller.enqueue(encoder.encode(metadataEvent));
+              }
+              
+              // Split content into words for natural streaming
+              const words = content.split(' ');
+              
+              // Send each word as a text delta with proper streaming delay
+              for (let i = 0; i < words.length; i++) {
+                const word = words[i];
+                const textDelta = i === 0 ? word : ' ' + word;
+                
+                // Proper escaping for AI SDK Data Stream Protocol
+                const escapedText = textDelta
+                  .replace(/\\/g, '\\\\')
+                  .replace(/"/g, '\\"')
+                  .replace(/\n/g, '\\n')
+                  .replace(/\r/g, '\\r')
+                  .replace(/\t/g, '\\t');
+                
+                // AI SDK Data Stream Protocol format: 0:"text_delta"
+                const data = `0:"${escapedText}"\n`;
+                controller.enqueue(encoder.encode(data));
+                
+                // Add delay for streaming effect (30ms per word)
+                if (i < words.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 30));
+                }
+              }
+              
+              // Send completion event
+              controller.enqueue(encoder.encode('e:{"finishReason":"stop"}\n'));
+              
+              // Send final data event
+              controller.enqueue(encoder.encode('d:{}\n'));
+              
+            } catch (error) {
+              console.error('Streaming error:', error);
+              // Send error event
+              controller.enqueue(encoder.encode('e:{"finishReason":"error"}\n'));
+            } finally {
+              controller.close();
+            }
+          },
+        });
+
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type',
+          },
+        });
       } catch (ragError) {
         console.error('RAG error, falling back to search + LLM:', ragError);
       }
