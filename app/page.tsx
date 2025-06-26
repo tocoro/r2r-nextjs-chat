@@ -2,6 +2,7 @@ import { auth } from "@/auth"
 import { Shield, LogOut, FileText } from 'lucide-react'
 import Link from 'next/link'
 import ChatClientPage from './ChatClientPage'
+import AISidebarChat from '@/components/AISidebarChat'
 import { redirect } from 'next/navigation'
 
 async function signOutAction() {
@@ -76,5 +77,8 @@ export default async function Home() {
       {/* Chat Client Component */}
       <ChatClientPage />
     </div>
+    
+    {/* Sidebar Chat */}
+    <AISidebarChat />
   )
 }
