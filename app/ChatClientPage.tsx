@@ -149,7 +149,21 @@ export default function ChatClientPage() {
 
           {/* Search Results */}
           {searchResults.length > 0 && (
-            <SearchResultsAccordion results={searchResults} />
+            <SearchResultsAccordion 
+              searchResults={searchResults.reduce((acc: any, result: any) => {
+                const shortId = result.chunk_id?.substring(0, 7) || result.id?.substring(0, 7);
+                acc[shortId] = {
+                  id: result.chunk_id || result.id,
+                  documentId: result.document_id,
+                  ownerId: '',
+                  collectionIds: [],
+                  score: result.score,
+                  text: result.text,
+                  metadata: result.metadata
+                };
+                return acc;
+              }, {})} 
+            />
           )}
 
           {/* Messages */}
