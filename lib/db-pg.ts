@@ -167,7 +167,7 @@ export async function deleteUser(username: string): Promise<boolean> {
       `DELETE FROM users WHERE username = $1 AND username != 'admin';`,
       [username]
     )
-    return result.rowCount > 0
+    return (result.rowCount ?? 0) > 0
   } catch (error) {
     console.error('Error deleting user:', error)
     return false

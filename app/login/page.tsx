@@ -12,12 +12,10 @@ async function authenticate(formData: FormData) {
     })
   } catch (error) {
     if (error instanceof AuthError) {
-      switch (error.type) {
-        case "CredentialsSignin":
-          return "Invalid credentials."
-        default:
-          return "Something went wrong."
-      }
+      // In Next.js app router, we need to handle errors differently
+      // We can't return error strings from server actions used in forms
+      // Instead, we should redirect with error parameters or throw
+      throw new Error(error.type === "CredentialsSignin" ? "Invalid credentials" : "Something went wrong")
     }
     throw error
   }

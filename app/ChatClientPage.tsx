@@ -51,7 +51,6 @@ export default function ChatClientPage() {
     data: streamData,
   } = useChat({
     api: '/api/chat',
-    experimental_toolCallStreaming: true,
     body: {
       searchMode,
     },
@@ -149,7 +148,10 @@ export default function ChatClientPage() {
 
           {/* Search Results */}
           {searchResults.length > 0 && (
-            <SearchResultsAccordion results={searchResults} />
+            <SearchResultsAccordion searchResults={searchResults.reduce((acc: any, result: any) => {
+              acc[result.chunk_id?.substring(0, 7) || result.document_id?.substring(0, 7)] = result;
+              return acc;
+            }, {})} />
           )}
 
           {/* Messages */}
